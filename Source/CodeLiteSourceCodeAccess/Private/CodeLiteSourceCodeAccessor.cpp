@@ -49,11 +49,23 @@ void FCodeLiteSourceCodeAccessor::Startup()
 	// Cache this so we don't have to do it on a background thread
 	GetSolutionPath();
 
-	// FIXME: look for CodeLite and cache the path
+
+	dbus_error_init (&DBusError);
+
+	DBusConnection = dbus_bus_get(DBUS_BUS_SESSION, &DBusError);
+	if(dbus_error_is_set(&DBusError))
+	{
+		printf("Error connecting to the daemon bus: %s",DBusError.message);
+	}
+
+	UE_LOG(LogCodeLiteAccessor, Warning, TEXT("Successfully connected to CodeLite DBus server."));
 }
 
 void FCodeLiteSourceCodeAccessor::Shutdown()
 {
+	dbus_error_free(&DBusError);
+
+	UE_LOG(LogCodeLiteAccessor, Warning, TEXT("Successfully disconnected from the CodeLite DBus server."));
 }
 
 bool FCodeLiteSourceCodeAccessor::CanAccessSourceCode() const
@@ -92,16 +104,17 @@ bool FCodeLiteSourceCodeAccessor::OpenSolution()
 		UE_LOG(LogCodeLiteAccessor, Warning, TEXT("FCodeLiteSourceCodeAccessor::OpenSolution: Cannot find CodeLite binary"));
 		return false;
 	}
-	printf("******************** FCodeLiteSourceCodeAccessor::OpenSolution: %s\n", TCHAR_TO_UTF8(*Solution));
+	printf("FCodeLiteSourceCodeAccessor::OpenSolution: %s\n", TCHAR_TO_UTF8(*Solution));
 	UE_LOG(LogCodeLiteAccessor, Warning, TEXT("FCodeLiteSourceCodeAccessor::OpenSolution: %s"), *Solution);
 	
-	FProcHandle Proc = FPlatformProcess::CreateProc(*IDEPath, *Solution, true, false, false, nullptr, 0, nullptr, nullptr);
-	if(Proc.IsValid())
-	{
-		FPlatformProcess::CloseProc(Proc);
-		return true;
-	}
-	return false;
+//	FProcHandle Proc = FPlatformProcess::CreateProc(*IDEPath, *Solution, true, false, false, nullptr, 0, nullptr, nullptr);
+//	if(Proc.IsValid())
+//	{
+//		FPlatformProcess::CloseProc(Proc);
+//		return true;
+//	}
+	
+	return true;
 }
 
 bool FCodeLiteSourceCodeAccessor::OpenSourceFiles(const TArray<FString>& AbsoluteSourcePaths)
@@ -115,13 +128,38 @@ bool FCodeLiteSourceCodeAccessor::OpenSourceFiles(const TArray<FString>& Absolut
 
 	for(const auto& SourcePath : AbsoluteSourcePaths)
 	{
-		const FString NewSourcePath = FString::Printf(TEXT("\"%s\""), *SourcePath);
-		printf("******************** FCodeLiteSourceCodeAccessor::OpenSourceFiles: %s\n", TCHAR_TO_UTF8(*NewSourcePath));
-		if(!(FLinuxPlatformProcess::CreateProc(*IDEPath, *NewSourcePath, true, true, false, nullptr, 0, nullptr, nullptr).IsValid()))
-		{
+		DBusMessage* message = nullptr;
+		DBusMessageIter args;
+		
+		// Create new message.
+		message = dbus_message_new_signal ("/org/codelite/command", "org.codelite.command", "OpenFile");
+
+		char* fileName = TCHAR_TO_ANSI(*SourcePath);
+
+		// Add parameters to the message.
+		dbus_message_iter_init_append(message, &args);
+		if(!dbus_message_iter_append_basic(&args, DBUS_TYPE_STRING, &fileName)) {
+			UE_LOG(LogCodeLiteAccessor, Warning, TEXT("Sdbus_message_iter_append_basic failed."));
 			return false;
 		}
+		
+		// Send the message.
+		dbus_connection_send(DBusConnection, message, nullptr);
+		if(dbus_error_is_set(&DBusError))
+		{
+			UE_LOG(LogCodeLiteAccessor, Warning, TEXT("dbus_connection_send failed: %s"), DBusError.message);
+			return false;
+		}
+
+		// Free the message resources.
+		dbus_message_unref(message);
+		
+		printf("FCodeLiteSourceCodeAccessor::OpenSourceFiles: %s\n", fileName);
+
 	}
+
+	dbus_connection_flush(DBusConnection);
+		
 	return true;
 }
 
@@ -134,14 +172,36 @@ bool FCodeLiteSourceCodeAccessor::OpenFileAtLine(const FString& FullPath, int32 
 		return false;
 	}
 	
-	const FString Path = FString::Printf(TEXT("\"%s --line=%d\""), *FullPath, LineNumber);
-	printf("******************** FCodeLiteSourceCodeAccessor::OpenFileAtLine: %s %d\n", TCHAR_TO_UTF8(*Path), LineNumber);
+	DBusMessage* message = nullptr;
+	DBusMessageIter args;
 	
-	UE_LOG(LogCodeLiteAccessor, Warning, TEXT("FCodeLiteSourceCodeAccessor::OpenSourceFiles: Open: %s"), *Path);
-	if(FLinuxPlatformProcess::CreateProc(*IDEPath, *Path, true, true, false, nullptr, 0, nullptr, nullptr).IsValid())
-	{
-		return true;
+	// Create new message.
+	message = dbus_message_new_signal ("/org/codelite/command", "org.codelite.command", "OpenFileAtLine");
+
+	char* fileName = TCHAR_TO_ANSI(*FullPath);
+
+	// Add parameters to the message.
+	dbus_message_iter_init_append(message, &args);
+	if (!dbus_message_iter_append_basic(&args, DBUS_TYPE_STRING, &fileName)) {
+		printf("FCodeLiteSourceCodeAccessor::OpenFileAtLine: dbus_message_iter_append_basic failed.\n");
 	}
+	if (!dbus_message_iter_append_basic(&args, DBUS_TYPE_INT32, &LineNumber)) {
+		printf("FCodeLiteSourceCodeAccessor::OpenFileAtLine: dbus_message_iter_append_basic failed.\n");
+	}
+	
+	// Send the message.
+	dbus_connection_send(DBusConnection, message, nullptr);
+	if(dbus_error_is_set(&DBusError))
+	{
+		printf("dbus_connection_send failed (%s)\n", DBusError.message);
+		return false;
+	}
+	dbus_connection_flush(DBusConnection);
+	
+	// Free the message resources.
+	dbus_message_unref (message);
+
+	printf("FCodeLiteSourceCodeAccessor::OpenFileAtLine: %s %d\n", fileName, LineNumber);
 
 	return false;
 }
@@ -150,16 +210,62 @@ bool FCodeLiteSourceCodeAccessor::AddSourceFiles(const TArray<FString>& Absolute
 {
 	for(const auto& SourcePath : AbsoluteSourcePaths)
 	{
-		const FString NewSourcePath = FString::Printf(TEXT("\"%s\""), *SourcePath);
-		printf("******************** FCodeLiteSourceCodeAccessor::AddSourceFiles: %s\n", TCHAR_TO_UTF8(*NewSourcePath));
+		DBusMessage* message = nullptr;
+		DBusMessageIter args;
+		
+		// Create new message.
+		message = dbus_message_new_signal ("/org/codelite/command", "org.codelite.command", "AddFile");
+
+		char* fileName = TCHAR_TO_ANSI(*SourcePath);
+
+		// Add parameters to the message.
+		dbus_message_iter_init_append(message, &args);
+		if(!dbus_message_iter_append_basic(&args, DBUS_TYPE_STRING, &fileName)) {
+			printf("FCodeLiteSourceCodeAccessor::dbus_message_iter_append_basic failed.\n");
+			return false;
+		}
+		
+		// Send the message.
+		dbus_connection_send(DBusConnection, message, nullptr);
+		if(dbus_error_is_set(&DBusError))
+		{
+			printf("dbus_connection_send failed (%s)\n", DBusError.message);
+			return false;
+		}
+
+		// Free the message resources.
+		dbus_message_unref(message);
+		
+		printf("FCodeLiteSourceCodeAccessor::AddSourceFiles: %s\n", fileName);
 	}
-	return false;
+
+	dbus_connection_flush(DBusConnection);
+	
+	return true;
 }
 
 bool FCodeLiteSourceCodeAccessor::SaveAllOpenDocuments() const
 {
-	printf("******************** FCodeLiteSourceCodeAccessor::SaveAllOpenDocuments\n");
-	return false;
+	DBusMessage* message = nullptr;
+	DBusMessageIter args;
+	
+	// Create new message.
+	message = dbus_message_new_signal ("/org/codelite/command", "org.codelite.command", "SaveAllFiles");
+
+	// Send the message.
+	dbus_connection_send(DBusConnection, message, nullptr);
+	if(dbus_error_is_set(&DBusError))
+	{
+		printf("dbus_connection_send failed (%s)\n", DBusError.message);
+		return false;
+	}
+	dbus_connection_flush(DBusConnection);
+	
+	// Free the message resources.
+	dbus_message_unref (message);
+
+	printf("FCodeLiteSourceCodeAccessor::SaveAllOpenDocuments.\n");
+	return true;
 }
 
 void FCodeLiteSourceCodeAccessor::Tick(const float DeltaTime)

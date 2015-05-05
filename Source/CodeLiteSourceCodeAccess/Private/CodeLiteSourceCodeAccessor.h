@@ -25,6 +25,7 @@
 #pragma once
 
 #include "ISourceCodeAccessor.h"
+#include <dbus/dbus.h>
 
 class FCodeLiteSourceCodeAccessor : public ISourceCodeAccessor
 {
@@ -94,4 +95,8 @@ private:
 
 	/** Gets solution path */
 	FString GetSolutionPath() const;
+
+private:
+	DBusConnection* DBusConnection;
+	DBusError 	DBusError;
 };
