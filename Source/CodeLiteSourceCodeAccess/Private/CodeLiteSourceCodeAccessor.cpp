@@ -63,8 +63,12 @@ void FCodeLiteSourceCodeAccessor::Startup()
 
 void FCodeLiteSourceCodeAccessor::Shutdown()
 {
+	// Free up allocated dbus error object.  
 	dbus_error_free(&DBusError);
-
+	
+	// Unreference the connections object.
+	dbus_connection_unref(DBusConnection);
+	
 	UE_LOG(LogCodeLiteAccessor, Warning, TEXT("Successfully disconnected from the CodeLite DBus server."));
 }
 
@@ -91,30 +95,58 @@ FText FCodeLiteSourceCodeAccessor::GetDescriptionText() const
 
 bool FCodeLiteSourceCodeAccessor::OpenSolution()
 {
-	if(IsIDERunning())
-	{
-		UE_LOG(LogCodeLiteAccessor, Warning, TEXT("FCodeLiteSourceCodeAccessor::OpenSolution: OpenSolution: CodeLite is running, use qdbus to open the project within session?"));
-		return false;
-	}
-
-	FString Solution = GetSolutionPath();
+	
+	FString Filename = FPaths::GetBaseFilename(GetSolutionPath()) + ".workspace";
+	FString Directory = FPaths::GetPath(GetSolutionPath());
+	FString Solution = "\"" + Directory + "/" + Filename + "\"";
 	FString IDEPath;
 	if(!CanRunCodeLite(IDEPath))
 	{
 		UE_LOG(LogCodeLiteAccessor, Warning, TEXT("FCodeLiteSourceCodeAccessor::OpenSolution: Cannot find CodeLite binary"));
 		return false;
 	}
-	printf("FCodeLiteSourceCodeAccessor::OpenSolution: %s\n", TCHAR_TO_UTF8(*Solution));
-	UE_LOG(LogCodeLiteAccessor, Warning, TEXT("FCodeLiteSourceCodeAccessor::OpenSolution: %s"), *Solution);
+
+
+	UE_LOG(LogCodeLiteAccessor, Warning, TEXT("FCodeLiteSourceCodeAccessor::OpenSolution: %s %s"), *IDEPath, *Solution);
+
+	FProcHandle Proc = FPlatformProcess::CreateProc(*IDEPath, *Solution, true, false, false, nullptr, 0, nullptr, nullptr);
+	if(Proc.IsValid())
+	{
+		FPlatformProcess::CloseProc(Proc);
+		return true;
+	}
+	return false;
 	
-//	FProcHandle Proc = FPlatformProcess::CreateProc(*IDEPath, *Solution, true, false, false, nullptr, 0, nullptr, nullptr);
-//	if(Proc.IsValid())
-//	{
-//		FPlatformProcess::CloseProc(Proc);
-//		return true;
+		
+//	//
+//	// TODO Somehow codelite is not opening the workspace using GetWorkspace()->Open(...)
+//	//
+//	DBusMessage* message = nullptr;
+//	DBusMessageIter args;
+//		
+//	// Create new message.
+//	message = dbus_message_new_signal ("/org/codelite/command", "org.codelite.command", "OpenWorkSpace");
+//
+//	char* fileName = TCHAR_TO_ANSI(*Solution);
+//
+//	// Add parameters to the message.
+//	dbus_message_iter_init_append(message, &args);
+//	if(!dbus_message_iter_append_basic(&args, DBUS_TYPE_STRING, &fileName)) {
+//		UE_LOG(LogCodeLiteAccessor, Warning, TEXT("Sdbus_message_iter_append_basic failed."));
+//		return false;
 //	}
-	
-	return true;
+//	
+//	// Send the message.
+//	dbus_connection_send(DBusConnection, message, nullptr);
+//	if(dbus_error_is_set(&DBusError))
+//	{
+//		UE_LOG(LogCodeLiteAccessor, Warning, TEXT("dbus_connection_send failed: %s"), DBusError.message);
+//		return false;
+//	}
+//	// Free the message resources.
+//	dbus_message_unref(message);
+//	
+//	return true;
 }
 
 bool FCodeLiteSourceCodeAccessor::OpenSourceFiles(const TArray<FString>& AbsoluteSourcePaths)
