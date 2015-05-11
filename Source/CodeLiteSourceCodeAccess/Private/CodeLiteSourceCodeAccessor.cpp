@@ -106,8 +106,39 @@ bool FCodeLiteSourceCodeAccessor::OpenSolution()
 		return false;
 	}
 
-
 	UE_LOG(LogCodeLiteAccessor, Warning, TEXT("FCodeLiteSourceCodeAccessor::OpenSolution: %s %s"), *IDEPath, *Solution);
+	
+#ifdef USE_DBUS			
+	//
+	// TODO Somehow codelite is not opening the workspace using GetWorkspace()->Open(...)
+	//
+	DBusMessage* message = nullptr;
+	DBusMessageIter args;
+		
+	// Create new message.
+	message = dbus_message_new_signal ("/org/codelite/command", "org.codelite.command", "OpenWorkSpace");
+
+	char* fileName = TCHAR_TO_ANSI(*Solution);
+
+	// Add parameters to the message.
+	dbus_message_iter_init_append(message, &args);
+	if(!dbus_message_iter_append_basic(&args, DBUS_TYPE_STRING, &fileName)) {
+		UE_LOG(LogCodeLiteAccessor, Warning, TEXT("Sdbus_message_iter_append_basic failed."));
+		return false;
+	}
+	
+	// Send the message.
+	dbus_connection_send(DBusConnection, message, nullptr);
+	if(dbus_error_is_set(&DBusError))
+	{
+		UE_LOG(LogCodeLiteAccessor, Warning, TEXT("dbus_connection_send failed: %s"), DBusError.message);
+		return false;
+	}
+	// Free the message resources.
+	dbus_message_unref(message);
+	
+	return true;
+#else
 
 	FProcHandle Proc = FPlatformProcess::CreateProc(*IDEPath, *Solution, true, false, false, nullptr, 0, nullptr, nullptr);
 	if(Proc.IsValid())
@@ -116,37 +147,9 @@ bool FCodeLiteSourceCodeAccessor::OpenSolution()
 		return true;
 	}
 	return false;
-	
-		
-//	//
-//	// TODO Somehow codelite is not opening the workspace using GetWorkspace()->Open(...)
-//	//
-//	DBusMessage* message = nullptr;
-//	DBusMessageIter args;
-//		
-//	// Create new message.
-//	message = dbus_message_new_signal ("/org/codelite/command", "org.codelite.command", "OpenWorkSpace");
-//
-//	char* fileName = TCHAR_TO_ANSI(*Solution);
-//
-//	// Add parameters to the message.
-//	dbus_message_iter_init_append(message, &args);
-//	if(!dbus_message_iter_append_basic(&args, DBUS_TYPE_STRING, &fileName)) {
-//		UE_LOG(LogCodeLiteAccessor, Warning, TEXT("Sdbus_message_iter_append_basic failed."));
-//		return false;
-//	}
-//	
-//	// Send the message.
-//	dbus_connection_send(DBusConnection, message, nullptr);
-//	if(dbus_error_is_set(&DBusError))
-//	{
-//		UE_LOG(LogCodeLiteAccessor, Warning, TEXT("dbus_connection_send failed: %s"), DBusError.message);
-//		return false;
-//	}
-//	// Free the message resources.
-//	dbus_message_unref(message);
-//	
-//	return true;
+
+#endif
+
 }
 
 bool FCodeLiteSourceCodeAccessor::OpenSourceFiles(const TArray<FString>& AbsoluteSourcePaths)
@@ -158,8 +161,11 @@ bool FCodeLiteSourceCodeAccessor::OpenSourceFiles(const TArray<FString>& Absolut
 		return false;
 	}
 
+#ifdef USE_DBUS	
+
 	for(const auto& SourcePath : AbsoluteSourcePaths)
 	{
+		
 		DBusMessage* message = nullptr;
 		DBusMessageIter args;
 		
@@ -191,6 +197,25 @@ bool FCodeLiteSourceCodeAccessor::OpenSourceFiles(const TArray<FString>& Absolut
 	}
 
 	dbus_connection_flush(DBusConnection);
+#else
+	
+	FString CodeLitePath;
+	if(!CanRunCodeLite(CodeLitePath))
+	{
+		UE_LOG(LogCodeLiteAccessor, Warning, TEXT("FCodeLiteSourceCodeAccessor::OpenSolution: Cannot find CodeLite binary"));
+		return false;
+	}
+	
+	for(const auto& SourcePath : AbsoluteSourcePaths)
+	{
+		const FString Path = FString::Printf(TEXT("\"%s\""), *SourcePath);
+
+		if(FLinuxPlatformProcess::CreateProc(*CodeLitePath, *Path, true, true, false, nullptr, 0, nullptr, nullptr).IsValid())
+		{
+			
+		}
+	}
+#endif
 		
 	return true;
 }
@@ -203,6 +228,8 @@ bool FCodeLiteSourceCodeAccessor::OpenFileAtLine(const FString& FullPath, int32 
 		UE_LOG(LogCodeLiteAccessor,Warning, TEXT("FCodeLiteSourceCodeAccessor::OpenSourceFiles: Cannot find CodeLite binary"));
 		return false;
 	}
+	
+#ifdef USE_DBUS	
 	
 	DBusMessage* message = nullptr;
 	DBusMessageIter args;
@@ -232,14 +259,32 @@ bool FCodeLiteSourceCodeAccessor::OpenFileAtLine(const FString& FullPath, int32 
 	
 	// Free the message resources.
 	dbus_message_unref (message);
+	
+#else
+	FString CodeLitePath;
+	if(!CanRunCodeLite(CodeLitePath))
+	{
+		UE_LOG(LogCodeLiteAccessor, Warning, TEXT("FCodeLiteSourceCodeAccessor::OpenSolution: Cannot find CodeLite binary"));
+		return false;
+	}
+	
+	const FString Path = FString::Printf(TEXT("\"%s --line=%d\""), *FullPath, LineNumber);
 
-	printf("FCodeLiteSourceCodeAccessor::OpenFileAtLine: %s %d\n", fileName, LineNumber);
+	if(FLinuxPlatformProcess::CreateProc(*CodeLitePath, *Path, true, true, false, nullptr, 0, nullptr, nullptr).IsValid())
+	{
+		UE_LOG(LogCodeLiteAccessor, Warning, TEXT("FCodeLiteSourceCodeAccessor::OpenSolution: Cannot find CodeLite binary"));
+	}
+	
+#endif
 
-	return false;
+	UE_LOG(LogCodeLiteAccessor, Warning, TEXT("CodeLiteSourceCodeAccessor::OpenFileAtLine: %s %d"), *FullPath, LineNumber);
+
+	return true;
 }
 
 bool FCodeLiteSourceCodeAccessor::AddSourceFiles(const TArray<FString>& AbsoluteSourcePaths, const TArray<FString>& AvailableModules)
 {
+#ifdef USE_DBUS	
 	for(const auto& SourcePath : AbsoluteSourcePaths)
 	{
 		DBusMessage* message = nullptr;
@@ -272,12 +317,17 @@ bool FCodeLiteSourceCodeAccessor::AddSourceFiles(const TArray<FString>& Absolute
 	}
 
 	dbus_connection_flush(DBusConnection);
-	
+#else
+	// TODO Is this possible without dbus here? Maybe we can add this functionality to CodeLite.
+	return false;
+#endif
 	return true;
 }
 
 bool FCodeLiteSourceCodeAccessor::SaveAllOpenDocuments() const
 {
+#ifdef USE_DBUS	
+
 	DBusMessage* message = nullptr;
 	DBusMessageIter args;
 	
@@ -297,6 +347,11 @@ bool FCodeLiteSourceCodeAccessor::SaveAllOpenDocuments() const
 	dbus_message_unref (message);
 
 	printf("FCodeLiteSourceCodeAccessor::SaveAllOpenDocuments.\n");
+#else
+	// TODO Is this possible without dbus here? Maybe we can add this functionality to CodeLite.
+	return false;
+#endif
+
 	return true;
 }
 

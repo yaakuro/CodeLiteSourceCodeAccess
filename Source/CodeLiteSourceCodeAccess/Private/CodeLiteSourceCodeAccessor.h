@@ -27,6 +27,8 @@
 #include "ISourceCodeAccessor.h"
 #include <dbus/dbus.h>
 
+//#define USE_DBUS
+
 class FCodeLiteSourceCodeAccessor : public ISourceCodeAccessor
 {
 public:
@@ -79,9 +81,13 @@ public:
 	 * Save all open files.
 	 */
 	virtual bool SaveAllOpenDocuments() const override;
+	
 	virtual void Tick(const float DeltaTime) override;
+	
 private:
+
 	pid_t FindProcess(const char* name);
+	
 private:
 
 	/** String storing the solution path obtained from the module manager to avoid having to use it on a thread */
@@ -98,5 +104,5 @@ private:
 
 private:
 	DBusConnection* DBusConnection;
-	DBusError 	DBusError;
+	DBusError 		DBusError;
 };
