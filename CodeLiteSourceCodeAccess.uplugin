@@ -1,16 +1,14 @@
 {
 	"FileVersion" : 3,
-	
 	"FriendlyName" : "CodeLite Integration",
 	"Version" : 1,
 	"VersionName" : "1.0",
 	"CreatedBy" : "Cengiz Terzibas (yaakuro)",
-	"CreatedByURL" : "http://codeposer.net",
+	"CreatedByURL" : "http://www.codeposer.net",
 	"EngineVersion" : "4.8.0",
 	"Description" : "Allows access to source code in CodeLite.",
 	"Category" : "Programming",
 	"EnabledByDefault" : true,
-	
 	"Modules" :
 	[
 		{
