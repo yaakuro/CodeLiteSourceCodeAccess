@@ -1,22 +1,25 @@
 {
-	"FileVersion" : 3,
-	
-	"FriendlyName" : "CodeLite Integration",
-	"Version" : 1,
-	"VersionName" : "1.0",
-	"CreatedBy" : "Cengiz Terzibas (yaakuro)",
-	"CreatedByURL" : "http://codeposer.net",
-	"EngineVersion" : "4.8.0",
-	"Description" : "Allows access to source code in CodeLite.",
-	"Category" : "Programming",
-	"EnabledByDefault" : true,
-	
-	"Modules" :
-	[
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "1.0",
+	"FriendlyName": "CodeLite Integration",
+	"Description": "Allows Source Code management using CodeLite.",
+	"Category": "Programming",
+	"CreatedBy": "Cengiz Terzibas (yaakuro)",
+	"CreatedByURL": "http://www.codeposer.net",
+	"DocsURL": "",
+	"Modules": [
 		{
-			"Name" : "CodeLiteSourceCodeAccess",
-			"Type" : "Developer",
-			"WhitelistPlatforms" : [ "Linux" ]
+			"Name": "CodeLiteSourceCodeAccess",
+			"Type": "Developer",
+			"LoadingPhase": "Default",
+			"WhitelistPlatforms": [
+				"Linux"
+			]
 		}
-	]
+	],
+	"EnabledByDefault": true,
+	"CanContainContent": false,
+	"IsBetaVersion": false,
+	"Installed": false
 }
