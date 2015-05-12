@@ -14,7 +14,8 @@
 			"Type": "Developer",
 			"LoadingPhase": "Default",
 			"WhitelistPlatforms": [
-				"Linux"
+				"Linux",
+				"Mac"
 			]
 		}
 	],

@@ -24,10 +24,16 @@
 
 #pragma once
 
-#include "ISourceCodeAccessor.h"
-#include <dbus/dbus.h>
-
 //#define USE_DBUS
+
+
+#include "ISourceCodeAccessor.h"
+
+#ifdef USE_DBUS
+
+	#include <dbus/dbus.h>
+
+#endif
 
 class FCodeLiteSourceCodeAccessor : public ISourceCodeAccessor
 {
@@ -103,6 +109,8 @@ private:
 	FString GetSolutionPath() const;
 
 private:
+#ifdef USE_DBUS
 	DBusConnection* DBusConnection;
 	DBusError 		DBusError;
+#endif
 };

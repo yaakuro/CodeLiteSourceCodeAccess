@@ -49,7 +49,7 @@ void FCodeLiteSourceCodeAccessor::Startup()
 	// Cache this so we don't have to do it on a background thread
 	GetSolutionPath();
 
-
+#ifdef USE_DBUS
 	dbus_error_init (&DBusError);
 
 	DBusConnection = dbus_bus_get(DBUS_BUS_SESSION, &DBusError);
@@ -59,10 +59,12 @@ void FCodeLiteSourceCodeAccessor::Startup()
 	}
 
 	UE_LOG(LogCodeLiteAccessor, Warning, TEXT("Successfully connected to CodeLite DBus server."));
+#endif
 }
 
 void FCodeLiteSourceCodeAccessor::Shutdown()
 {
+	#ifdef USE_DBUS
 	// Free up allocated dbus error object.  
 	dbus_error_free(&DBusError);
 	
@@ -70,6 +72,7 @@ void FCodeLiteSourceCodeAccessor::Shutdown()
 	dbus_connection_unref(DBusConnection);
 	
 	UE_LOG(LogCodeLiteAccessor, Warning, TEXT("Successfully disconnected from the CodeLite DBus server."));
+	#endif
 }
 
 bool FCodeLiteSourceCodeAccessor::CanAccessSourceCode() const
@@ -210,7 +213,7 @@ bool FCodeLiteSourceCodeAccessor::OpenSourceFiles(const TArray<FString>& Absolut
 	{
 		const FString Path = FString::Printf(TEXT("\"%s\""), *SourcePath);
 
-		if(FLinuxPlatformProcess::CreateProc(*CodeLitePath, *Path, true, true, false, nullptr, 0, nullptr, nullptr).IsValid())
+		if(FPlatformProcess::CreateProc(*CodeLitePath, *Path, true, true, false, nullptr, 0, nullptr, nullptr).IsValid())
 		{
 			
 		}
@@ -270,7 +273,7 @@ bool FCodeLiteSourceCodeAccessor::OpenFileAtLine(const FString& FullPath, int32 
 	
 	const FString Path = FString::Printf(TEXT("\"%s --line=%d\""), *FullPath, LineNumber);
 
-	if(FLinuxPlatformProcess::CreateProc(*CodeLitePath, *Path, true, true, false, nullptr, 0, nullptr, nullptr).IsValid())
+	if(FPlatformProcess::CreateProc(*CodeLitePath, *Path, true, true, false, nullptr, 0, nullptr, nullptr).IsValid())
 	{
 		UE_LOG(LogCodeLiteAccessor, Warning, TEXT("FCodeLiteSourceCodeAccessor::OpenSolution: Cannot find CodeLite binary"));
 	}
