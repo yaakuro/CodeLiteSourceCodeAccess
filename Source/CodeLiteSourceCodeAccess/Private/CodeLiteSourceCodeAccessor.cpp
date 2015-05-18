@@ -64,7 +64,7 @@ void FCodeLiteSourceCodeAccessor::Startup()
 
 void FCodeLiteSourceCodeAccessor::Shutdown()
 {
-	#ifdef USE_DBUS
+#ifdef USE_DBUS
 	// Free up allocated dbus error object.  
 	dbus_error_free(&DBusError);
 	
@@ -72,7 +72,7 @@ void FCodeLiteSourceCodeAccessor::Shutdown()
 	dbus_connection_unref(DBusConnection);
 	
 	UE_LOG(LogCodeLiteAccessor, Warning, TEXT("Successfully disconnected from the CodeLite DBus server."));
-	#endif
+#endif
 }
 
 bool FCodeLiteSourceCodeAccessor::CanAccessSourceCode() const
@@ -88,30 +88,31 @@ FName FCodeLiteSourceCodeAccessor::GetFName() const
 
 FText FCodeLiteSourceCodeAccessor::GetNameText() const
 {
-	return LOCTEXT("CodeLiteDisplayName", "CodeLite 7.0");
+	return LOCTEXT("CodeLiteDisplayName", "CodeLite 7/8.x");
 }
 
 FText FCodeLiteSourceCodeAccessor::GetDescriptionText() const
 {
-	return LOCTEXT("CodeLiteDisplayDesc", "Open source code files in CodeLite 7.0");
+	return LOCTEXT("CodeLiteDisplayDesc", "Open source code files in CodeLite");
 }
 
 bool FCodeLiteSourceCodeAccessor::OpenSolution()
 {
-	
+
 	FString Filename = FPaths::GetBaseFilename(GetSolutionPath()) + ".workspace";
 	FString Directory = FPaths::GetPath(GetSolutionPath());
 	FString Solution = "\"" + Directory + "/" + Filename + "\"";
-	FString IDEPath;
-	if(!CanRunCodeLite(IDEPath))
+	FString CodeLitePath;
+	if(!CanRunCodeLite(CodeLitePath))
 	{
 		UE_LOG(LogCodeLiteAccessor, Warning, TEXT("FCodeLiteSourceCodeAccessor::OpenSolution: Cannot find CodeLite binary"));
 		return false;
 	}
 
-	UE_LOG(LogCodeLiteAccessor, Warning, TEXT("FCodeLiteSourceCodeAccessor::OpenSolution: %s %s"), *IDEPath, *Solution);
+	UE_LOG(LogCodeLiteAccessor, Warning, TEXT("FCodeLiteSourceCodeAccessor::OpenSolution: %s %s"), *CodeLitePath, *Solution);
 	
-#ifdef USE_DBUS			
+#ifdef USE_DBUS
+
 	//
 	// TODO Somehow codelite is not opening the workspace using GetWorkspace()->Open(...)
 	//
@@ -141,9 +142,10 @@ bool FCodeLiteSourceCodeAccessor::OpenSolution()
 	dbus_message_unref(message);
 	
 	return true;
+
 #else
 
-	FProcHandle Proc = FPlatformProcess::CreateProc(*IDEPath, *Solution, true, false, false, nullptr, 0, nullptr, nullptr);
+	FProcHandle Proc = FPlatformProcess::CreateProc(*CodeLitePath, *Solution, true, false, false, nullptr, 0, nullptr, nullptr);
 	if(Proc.IsValid())
 	{
 		FPlatformProcess::CloseProc(Proc);
@@ -157,10 +159,10 @@ bool FCodeLiteSourceCodeAccessor::OpenSolution()
 
 bool FCodeLiteSourceCodeAccessor::OpenSourceFiles(const TArray<FString>& AbsoluteSourcePaths)
 {
-	FString IDEPath;
-	if(!CanRunCodeLite(IDEPath))
+	FString CodeLitePath;
+	if(!CanRunCodeLite(CodeLitePath))
 	{
-		UE_LOG(LogCodeLiteAccessor,Warning, TEXT("FCodeLiteSourceCodeAccessor::OpenSourceFiles: Cannot find CodeLite binary"));
+		UE_LOG(LogCodeLiteAccessor, Warning, TEXT("FCodeLiteSourceCodeAccessor::OpenSourceFiles: Cannot find CodeLite binary"));
 		return false;
 	}
 
@@ -194,41 +196,39 @@ bool FCodeLiteSourceCodeAccessor::OpenSourceFiles(const TArray<FString>& Absolut
 
 		// Free the message resources.
 		dbus_message_unref(message);
-		
-		printf("FCodeLiteSourceCodeAccessor::OpenSourceFiles: %s\n", fileName);
 
 	}
 
 	dbus_connection_flush(DBusConnection);
+
+	return true;
+
 #else
-	
-	FString CodeLitePath;
-	if(!CanRunCodeLite(CodeLitePath))
-	{
-		UE_LOG(LogCodeLiteAccessor, Warning, TEXT("FCodeLiteSourceCodeAccessor::OpenSolution: Cannot find CodeLite binary"));
-		return false;
-	}
-	
+
 	for(const auto& SourcePath : AbsoluteSourcePaths)
 	{
 		const FString Path = FString::Printf(TEXT("\"%s\""), *SourcePath);
 
-		if(FPlatformProcess::CreateProc(*CodeLitePath, *Path, true, true, false, nullptr, 0, nullptr, nullptr).IsValid())
+		FProcHandle Proc = FPlatformProcess::CreateProc(*CodeLitePath, *Path, true, false, false, nullptr, 0, nullptr, nullptr);
+		if(Proc.IsValid())
 		{
-			
+			UE_LOG(LogCodeLiteAccessor, Warning, TEXT("CodeLiteSourceCodeAccessor::OpenSourceFiles: %s"), *Path);
+			FPlatformProcess::CloseProc(Proc);
+			return true;
 		}
 	}
+
 #endif
-		
-	return true;
+
+	return false;
 }
 
 bool FCodeLiteSourceCodeAccessor::OpenFileAtLine(const FString& FullPath, int32 LineNumber, int32 ColumnNumber)
 {
-	FString IDEPath;
-	if(!CanRunCodeLite(IDEPath))
+	FString CodeLitePath;
+	if(!CanRunCodeLite(CodeLitePath))
 	{
-		UE_LOG(LogCodeLiteAccessor,Warning, TEXT("FCodeLiteSourceCodeAccessor::OpenSourceFiles: Cannot find CodeLite binary"));
+		UE_LOG(LogCodeLiteAccessor,Warning, TEXT("FCodeLiteSourceCodeAccessor::OpenFileAtLine: Cannot find CodeLite binary"));
 		return false;
 	}
 	
@@ -264,13 +264,7 @@ bool FCodeLiteSourceCodeAccessor::OpenFileAtLine(const FString& FullPath, int32 
 	dbus_message_unref (message);
 	
 #else
-	FString CodeLitePath;
-	if(!CanRunCodeLite(CodeLitePath))
-	{
-		UE_LOG(LogCodeLiteAccessor, Warning, TEXT("FCodeLiteSourceCodeAccessor::OpenSolution: Cannot find CodeLite binary"));
-		return false;
-	}
-	
+
 	const FString Path = FString::Printf(TEXT("\"%s --line=%d\""), *FullPath, LineNumber);
 
 	if(FPlatformProcess::CreateProc(*CodeLitePath, *Path, true, true, false, nullptr, 0, nullptr, nullptr).IsValid())
@@ -320,11 +314,13 @@ bool FCodeLiteSourceCodeAccessor::AddSourceFiles(const TArray<FString>& Absolute
 	}
 
 	dbus_connection_flush(DBusConnection);
-#else
+
+	return true;
+
+#endif
+
 	// TODO Is this possible without dbus here? Maybe we can add this functionality to CodeLite.
 	return false;
-#endif
-	return true;
 }
 
 bool FCodeLiteSourceCodeAccessor::SaveAllOpenDocuments() const
@@ -360,11 +356,13 @@ bool FCodeLiteSourceCodeAccessor::SaveAllOpenDocuments() const
 
 void FCodeLiteSourceCodeAccessor::Tick(const float DeltaTime)
 {
+	// TODO What can we do here?
 }
 
 
 bool FCodeLiteSourceCodeAccessor::CanRunCodeLite(FString& OutPath) const
 {
+	// TODO This might be not a good idea to find an executable.
 	OutPath = TEXT("/usr/bin/codelite");
 	return FPaths::FileExists(OutPath);
 }
@@ -372,12 +370,15 @@ bool FCodeLiteSourceCodeAccessor::CanRunCodeLite(FString& OutPath) const
 
 bool FCodeLiteSourceCodeAccessor::IsIDERunning()
 {
+#ifdef PLATFORM_LINUX
 	pid_t pid = FindProcess("codelite");
 	if(pid == -1)
 	{
 		return false;
 	}
+#endif
 	return true;
+
 }
 
 FString FCodeLiteSourceCodeAccessor::GetSolutionPath() const
@@ -395,6 +396,8 @@ FString FCodeLiteSourceCodeAccessor::GetSolutionPath() const
 
 pid_t FCodeLiteSourceCodeAccessor::FindProcess(const char* name)
 {
+	// TODO This is only 
+#ifdef PLATFORM_LINUX
 	DIR* dir;
 	struct dirent* ent;
 	char* endptr;
@@ -435,6 +438,7 @@ pid_t FCodeLiteSourceCodeAccessor::FindProcess(const char* name)
 	}
 
 	closedir(dir);
+#endif
 	return -1;
 }
 
