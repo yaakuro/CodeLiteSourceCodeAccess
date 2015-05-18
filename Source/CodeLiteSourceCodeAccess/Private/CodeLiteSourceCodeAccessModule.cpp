@@ -32,13 +32,11 @@ void FCodeLiteSourceCodeAccessModule::StartupModule()
 {
 	CodeLiteSourceCodeAccessor.Startup();
 
-	// Bind our source control provider to the editor
 	IModularFeatures::Get().RegisterModularFeature(TEXT("SourceCodeAccessor"), &CodeLiteSourceCodeAccessor );
 }
 
 void FCodeLiteSourceCodeAccessModule::ShutdownModule()
 {
-	// unbind provider from editor
 	IModularFeatures::Get().UnregisterModularFeature(TEXT("SourceCodeAccessor"), &CodeLiteSourceCodeAccessor);
 
 	CodeLiteSourceCodeAccessor.Shutdown();

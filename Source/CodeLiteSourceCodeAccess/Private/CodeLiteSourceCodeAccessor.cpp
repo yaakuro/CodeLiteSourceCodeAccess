@@ -376,8 +376,10 @@ bool FCodeLiteSourceCodeAccessor::IsIDERunning()
 	{
 		return false;
 	}
-#endif
+
 	return true;
+#endif
+	return false;
 
 }
 
@@ -396,7 +398,7 @@ FString FCodeLiteSourceCodeAccessor::GetSolutionPath() const
 
 pid_t FCodeLiteSourceCodeAccessor::FindProcess(const char* name)
 {
-	// TODO This is only 
+	// TODO This is only to test. Will be changed later.
 #ifdef PLATFORM_LINUX
 	DIR* dir;
 	struct dirent* ent;
