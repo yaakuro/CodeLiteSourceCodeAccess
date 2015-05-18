@@ -101,9 +101,9 @@ public:
 	void Shutdown();
 
 private:
-
+#ifdef PLATFORM_LINUX
 	pid_t FindProcess(const char* name);
-	
+#endif
 private:
 
 	/** String storing the solution path obtained from the module manager to avoid having to use it on a thread */

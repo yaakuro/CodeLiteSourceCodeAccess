@@ -396,10 +396,11 @@ FString FCodeLiteSourceCodeAccessor::GetSolutionPath() const
 	return CachedSolutionPath;
 }
 
+#ifdef PLATFORM_LINUX
 pid_t FCodeLiteSourceCodeAccessor::FindProcess(const char* name)
 {
 	// TODO This is only to test. Will be changed later.
-#ifdef PLATFORM_LINUX
+
 	DIR* dir;
 	struct dirent* ent;
 	char* endptr;
@@ -440,8 +441,9 @@ pid_t FCodeLiteSourceCodeAccessor::FindProcess(const char* name)
 	}
 
 	closedir(dir);
-#endif
+
 	return -1;
 }
+#endif
 
 #undef LOCTEXT_NAMESPACE
