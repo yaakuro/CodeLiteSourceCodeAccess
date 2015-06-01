@@ -21,14 +21,15 @@ namespace UnrealBuildTool.Rules
 			}
 			if ( (Target.Platform == UnrealTargetPlatform.Linux) )
 			{
-				PublicIncludePaths.AddRange(new string[] { "/usr/include/dbus-1.0", "/usr/lib/x86_64-linux-gnu/dbus-1.0/include" });
-				PublicAdditionalLibraries.Add("dbus-1");
+				// TODO For now not needed.
+			//	PublicIncludePaths.AddRange(new string[] { "/usr/include/dbus-1.0", "/usr/lib/x86_64-linux-gnu/dbus-1.0/include" });
+			//	PublicAdditionalLibraries.Add("dbus-1");
 			} 
 			else if ( (Target.Platform == UnrealTargetPlatform.Mac) )
 			{
 			}
 			else if ( (Target.Platform == UnrealTargetPlatform.Win64) || 
-									(Target.Platform == UnrealTargetPlatform.Win32) )
+					  (Target.Platform == UnrealTargetPlatform.Win32) )
 			{
 			}
 		}
