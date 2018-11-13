@@ -6,6 +6,12 @@
 #include "Misc/App.h"
 #include "Misc/ScopeLock.h"
 
+#if PLATFORM_WINDOWS
+#include "Windows/AllowWindowsPlatformTypes.h"
+#include "Internationalization/Regex.h"
+#endif
+
+
 DEFINE_LOG_CATEGORY_STATIC(LogCodeLiteAccessor, Log, All);
 
 #define LOCTEXT_NAMESPACE "CodeLiteSourceCodeAccessor"
@@ -22,6 +28,26 @@ void FCodeLiteSourceCodeAccessor::Startup()
 
 void FCodeLiteSourceCodeAccessor::RefreshAvailability()
 {
+#if PLATFORM_WINDOWS
+	FString IDEPath;
+
+	if (!FWindowsPlatformMisc::QueryRegKey(HKEY_CURRENT_USER, TEXT("SOFTWARE\\Classes\\Applications\\CodeLite.exe\\shell\\open\\command\\"), TEXT(""), IDEPath))
+	{
+		FWindowsPlatformMisc::QueryRegKey(HKEY_LOCAL_MACHINE, TEXT("SOFTWARE\\Classes\\Applications\\CodeLite.exe\\shell\\open\\command\\"), TEXT(""), IDEPath);
+	}
+
+	FString PatternString(TEXT("\"(.*)\" \".*\""));
+	FRegexPattern Pattern(PatternString);
+	FRegexMatcher Matcher(Pattern, IDEPath);
+	if (Matcher.FindNext())
+	{
+		FString URL = Matcher.GetCaptureGroup(1);
+		if (FPaths::FileExists(URL))
+		{
+			Location.URL = URL;
+		}
+	}
+#elif PLATFORM_LINUX
 	FString OutURL;
 	int32 ReturnCode = -1;
 	FPlatformProcess::ExecProcess(TEXT("/bin/bash"), TEXT("-c \"type -p codelite\""), &ReturnCode, &OutURL, nullptr);
@@ -38,6 +64,7 @@ void FCodeLiteSourceCodeAccessor::RefreshAvailability()
 		}
 	}
 	printf("CODELITE: RefreshAvailability\n");
+#endif
 }
 
 void FCodeLiteSourceCodeAccessor::Shutdown()
